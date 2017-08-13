@@ -199,7 +199,7 @@ def make_factors():
 factors = make_factors()
 
 
-# In[3]:
+# In[4]:
 
 
 universe = Q500US() # Define universe and select factors to use
@@ -208,7 +208,7 @@ n_fwd_days = 5 # number of days to compute returns over
 
 # Differently to source I changed rank to zscore!  
 
-# In[4]:
+# In[5]:
 
 
 # Define and build the pipeline
@@ -232,7 +232,7 @@ def make_history_pipeline(factors, universe, n_fwd_days=5):
 history_pipe = make_history_pipeline(factors, universe, n_fwd_days=n_fwd_days)
 
 
-# In[5]:
+# In[6]:
 
 
 # Because of problem with  time when taken a lot of data divide time to periods
@@ -243,7 +243,7 @@ results=pd.DataFrame()
 start = end_full-number_of_periods*(period)-(number_of_periods-1)*pd.DateOffset(1)
 
 
-# In[6]:
+# In[7]:
 
 
 # Run pipeline
@@ -258,13 +258,13 @@ end_timer = time()
 print "Time to run pipeline %.2f secs" % (end_timer - start_timer)
 
 
-# In[7]:
+# In[8]:
 
 
 results.head()
 
 
-# In[13]:
+# In[9]:
 
 
 # Sometimes there are duplicated indexis
@@ -288,7 +288,7 @@ X_train, Y_train = X[:train_size, ...], Y[:train_size]
 X_test, Y_test = X[(train_size+n_fwd_days):, ...], Y[(train_size+n_fwd_days):]
 
 
-# In[14]:
+# In[10]:
 
 
 def shift_mask_data_absolut_return(X, Y, n_fwd_days=1):
@@ -316,7 +316,7 @@ def shift_mask_data_absolut_return(X, Y, n_fwd_days=1):
     return X, Y_binary
 
 
-# In[15]:
+# In[30]:
 
 
 def shift_mask_data(X, Y, upper_percentile=60, lower_percentile=40, n_fwd_days=1):
@@ -341,8 +341,8 @@ def shift_mask_data(X, Y, upper_percentile=60, lower_percentile=40, n_fwd_days=1
     
     # Only try to predict whether a stock moved up/down relative to other stocks
     Y_binary = np.zeros(n_time * n_stocks)
-    Y_binary[upper_mask.flatten()] = 1
-    Y_binary[lower_mask.flatten()] = -1
+    Y_binary[upper_mask.flatten()] = 0
+    Y_binary[lower_mask.flatten()] = 1
     
     # Flatten X
     X = X.reshape((n_time * n_stocks, n_factors))
@@ -354,7 +354,7 @@ def shift_mask_data(X, Y, upper_percentile=60, lower_percentile=40, n_fwd_days=1
     return X, Y_binary
 
 
-# In[16]:
+# In[31]:
 
 
 X_train_shift, Y_train_shift = shift_mask_data(X_train, Y_train, n_fwd_days=n_fwd_days, 
@@ -368,7 +368,7 @@ print X_train_shift.shape, X_test_shift.shape
 print Y_train_shift.shape, Y_test_shift.shape
 
 
-# In[17]:
+# In[32]:
 
 
 imputer = preprocessing.Imputer()
@@ -380,7 +380,7 @@ X_test_trans = scaler.transform(X_test_trans)
 print X_train_trans.shape, X_test_trans.shape
 
 
-# In[62]:
+# In[33]:
 
 
 cls_metrics = {
@@ -399,14 +399,14 @@ metric_colors = {
                 }
 
 
-# In[30]:
+# In[ ]:
 
 
 metric_results_RF={}
 for metric in cls_metrics:
     metric_results_RF.update({metric:[]})
     metric_results_RF.update({'time':[]});
-depths =  np.array([7,15,10,40,50])
+depths =  np.array([1,2,3,5,6,7,15,10,40,50,100,200,300,500, 1000])
     
 for depth in depths:
     start_timer = time()
@@ -451,7 +451,7 @@ for metric in cls_metrics:
     print metric, 'for depth', depths[np.argmax(metric_results_RF[metric])]     ,'max value', max(metric_results_RF[metric])
 
 
-# In[39]:
+# In[ ]:
 
 
 
@@ -463,7 +463,7 @@ for metric in cls_metrics:
 
 
 
-# In[57]:
+# In[ ]:
 
 
 metric_results_RF={}
@@ -471,11 +471,11 @@ for metric in cls_metrics:
     metric_results_RF.update({metric:[]})
     metric_results_RF.update({'time':[]});
     
-changed_variables =  np.array([1,2,3,4,5,6,7,8])
+changed_variables =  np.array([10,20,30,40,50,70,100,200,300,400,500, 600, 1000])
     
 for changed_variable in changed_variables:
     start_timer = time()
-    clf = ensemble.RandomForestClassifier(max_depth=30,n_estimators=50,max_features=changed_variable) 
+    clf = ensemble.RandomForestClassifier(max_depth=30,n_estimators=changed_variable) 
     clf.fit(X_train_trans, Y_train_shift)
     
     Y_pred_test = clf.predict(X_test_trans)
@@ -515,7 +515,13 @@ for metric in cls_metrics:
     print 'max', metric, 'for variable', changed_variables[np.argmax(metric_results_RF[metric])]     ,'max value', max(metric_results_RF[metric])
 
 
-# In[70]:
+# In[ ]:
+
+
+
+
+
+# In[ ]:
 
 
 metric_results_PCA={}
@@ -583,7 +589,7 @@ for metric in cls_metrics:
 # In[ ]:
 
 
-
+metrics.classification_report(Y_test_shift, Y_pred_test)
 
 
 # In[ ]:
