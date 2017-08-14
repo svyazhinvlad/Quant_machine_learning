@@ -463,7 +463,7 @@ for metric in cls_metrics:
 
 
 
-# In[ ]:
+# In[100]:
 
 
 metric_results_RF={}
@@ -521,7 +521,7 @@ for metric in cls_metrics:
 
 
 
-# In[ ]:
+# In[101]:
 
 
 metric_results_PCA={}
@@ -586,22 +586,149 @@ for metric in cls_metrics:
     print 'max', metric, 'for number of components', pca_numbers[np.argmax(metric_results_PCA[metric])]     ,'max value', max(metric_results_PCA[metric])
 
 
+# In[107]:
+
+
+clf
+
+
+# In[108]:
+
+
+def get_last_values(input_data):
+    last_values = []
+    for dataset in input_data:
+        last_values.append(dataset[-1])
+    return np.vstack(last_values).T
+
+
+# In[134]:
+
+
+class ML(CustomFactor):
+    init = False
+    def compute(self, today, assets, out, returns, *inputs):
+        # inputs is a list of factors, for example, assume we have 2 alpha signals, 3 stocks,
+        # and a lookback of 2 days. Each element in the inputs list will be data of
+        # one signal, so len(inputs) == 2. Then each element will contain a 2-D array
+        # of shape [time x stocks]. For example:
+        # inputs[0]:
+        # [[1, 3, 2], # factor 1 rankings of day t-1 for 3 stocks  
+        #  [3, 2, 1]] # factor 1 rankings of day t for 3 stocks
+        # inputs[1]:
+        # [[2, 3, 1], # factor 2 rankings of day t-1 for 3 stocks
+        #  [1, 2, 3]] # factor 2 rankings of day t for 3 stocks
+        
+        if (not self.init) or (today.weekday == 0): # Monday
+            # Instantiate sklearn objects
+            self.imputer = imputer
+            self.scaler = scaler
+            self.clf = clf
+        # Predict
+        # Get most recent factor values (inputs always has the full history)
+        last_factor_values = get_last_values(inputs)
+        last_factor_values = self.imputer.transform(last_factor_values)
+        last_factor_values = self.scaler.transform(last_factor_values)
+
+        # Predict the probability for each stock going up 
+        # (column 2 of the output of .predict_proba()) and
+        # return it via assignment to out.
+        out[:] = self.clf.predict_proba(last_factor_values)[:, 1]*100
+
+
+# In[148]:
+
+
+from collections import OrderedDict
+
+def make_ml_pipeline(factors, universe, window_length=5, n_fwd_days=2):
+    factors_pipe = OrderedDict()
+    # Create returns over last n days.
+    factors_pipe['Returns'] = Returns(inputs=[USEquityPricing.open],
+                                      mask=universe, window_length=n_fwd_days)
+    
+    for i in [10,20,30,60,100,250]:
+        factors_pipe ['Return'+str(i)] = Returns(inputs=[USEquityPricing.open],
+                                      mask=universe, window_length=i)    
+    # Instantiate ranked factors
+    for name, f in factors.iteritems():
+        factors_pipe[name] = f().zscore(mask=universe)
+        
+    # Create our ML pipeline factor. The window_length will control how much
+    # lookback the passed in data will have.
+    factors_pipe['ML'] = ML(inputs=factors_pipe.values(), 
+                            window_length=window_length + 1, 
+                            mask=universe)
+    factors_pipe['ML_zscore']=factors_pipe['ML'].zscore(mask=universe)
+    factors_pipe['ML_ranked']=factors_pipe['ML'].rank(mask=universe)
+    
+    pipe = Pipeline(screen=universe, columns=factors_pipe)
+    
+    return pipe
+
+ml_pipe = make_ml_pipeline(factors, universe)
+
+
+# In[149]:
+
+
+start_timer = time()
+start = pd.Timestamp("2015-01-01") # Can't choose a much longer time-period or we run out of RAM
+end = pd.Timestamp("2015-03-01")
+
+results = run_pipeline(ml_pipe, start_date=start, end_date=end)
+
+end_timer = time()
+print "Time to run pipeline %.2f secs" % (end_timer - start_timer)
+
+
+# In[150]:
+
+
+results['ML_ranked']
+
+
+# In[151]:
+
+
+assets = results.index.levels[1]
+pricing = get_pricing(assets, start, end + pd.Timedelta(days=30), fields="open_price")
+
+
+# In[152]:
+
+
+pricing.shape
+
+
+# In[153]:
+
+
+results.columns
+
+
+# In[154]:
+
+
+results.ML.iloc[1]
+
+
+# In[155]:
+
+
+results['Asset Growth 3M'].head()
+
+
+# In[159]:
+
+
+al.tears.create_factor_tear_sheet(results['ML_ranked'], pricing)
+
+
 # In[ ]:
 
 
-metrics.confusion_matrix(Y_test_shift, Y_pred_test)
 
-
-# In[ ]:
-
-
-print(metrics.classification_report(Y_test_shift, Y_pred_test))
-
-
-# In[ ]:
-
-
-metrics.precision_score(Y_test_shift, Y_pred_test)
 
 
 # In[ ]:
