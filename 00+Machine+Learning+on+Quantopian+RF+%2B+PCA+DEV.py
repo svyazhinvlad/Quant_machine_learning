@@ -199,7 +199,7 @@ def make_factors():
 factors = make_factors()
 
 
-# In[4]:
+# In[3]:
 
 
 universe = Q500US() # Define universe and select factors to use
@@ -208,7 +208,7 @@ n_fwd_days = 5 # number of days to compute returns over
 
 # Differently to source I changed rank to zscore!  
 
-# In[5]:
+# In[77]:
 
 
 # Define and build the pipeline
@@ -220,7 +220,7 @@ def make_history_pipeline(factors, universe, n_fwd_days=5):
                                       mask=universe, window_length=n_fwd_days)
     
     # Add many returns as factors
-    for i in [2,3,4,5,10,20,30,60,100,250]:
+    for i in [10,20,30,60,100,250]:
         factor_zscore ['Return'+str(i)] = Returns(inputs=[USEquityPricing.open],
                                       mask=universe, window_length=i)    
     
@@ -232,7 +232,7 @@ def make_history_pipeline(factors, universe, n_fwd_days=5):
 history_pipe = make_history_pipeline(factors, universe, n_fwd_days=n_fwd_days)
 
 
-# In[6]:
+# In[78]:
 
 
 # Because of problem with  time when taken a lot of data divide time to periods
@@ -243,7 +243,7 @@ results=pd.DataFrame()
 start = end_full-number_of_periods*(period)-(number_of_periods-1)*pd.DateOffset(1)
 
 
-# In[7]:
+# In[79]:
 
 
 # Run pipeline
@@ -258,13 +258,13 @@ end_timer = time()
 print "Time to run pipeline %.2f secs" % (end_timer - start_timer)
 
 
-# In[8]:
+# In[80]:
 
 
 results.head()
 
 
-# In[9]:
+# In[81]:
 
 
 # Sometimes there are duplicated indexis
@@ -288,7 +288,7 @@ X_train, Y_train = X[:train_size, ...], Y[:train_size]
 X_test, Y_test = X[(train_size+n_fwd_days):, ...], Y[(train_size+n_fwd_days):]
 
 
-# In[10]:
+# In[82]:
 
 
 def shift_mask_data_absolut_return(X, Y, n_fwd_days=1):
@@ -316,7 +316,7 @@ def shift_mask_data_absolut_return(X, Y, n_fwd_days=1):
     return X, Y_binary
 
 
-# In[30]:
+# In[83]:
 
 
 def shift_mask_data(X, Y, upper_percentile=60, lower_percentile=40, n_fwd_days=1):
@@ -354,7 +354,7 @@ def shift_mask_data(X, Y, upper_percentile=60, lower_percentile=40, n_fwd_days=1
     return X, Y_binary
 
 
-# In[31]:
+# In[84]:
 
 
 X_train_shift, Y_train_shift = shift_mask_data(X_train, Y_train, n_fwd_days=n_fwd_days, 
@@ -368,7 +368,7 @@ print X_train_shift.shape, X_test_shift.shape
 print Y_train_shift.shape, Y_test_shift.shape
 
 
-# In[32]:
+# In[85]:
 
 
 imputer = preprocessing.Imputer()
@@ -380,12 +380,12 @@ X_test_trans = scaler.transform(X_test_trans)
 print X_train_trans.shape, X_test_trans.shape
 
 
-# In[33]:
+# In[98]:
 
 
 cls_metrics = {
             'accuracy': metrics.accuracy_score,
-            'precision':metrics.average_precision_score,
+            'precision':metrics.precision_score,
             'recall': metrics.recall_score ,
             'f1':metrics.f1_score,  
                 }
@@ -399,7 +399,7 @@ metric_colors = {
                 }
 
 
-# In[38]:
+# In[99]:
 
 
 metric_results_RF={}
@@ -463,7 +463,7 @@ for metric in cls_metrics:
 
 
 
-# In[39]:
+# In[ ]:
 
 
 metric_results_RF={}
@@ -521,7 +521,7 @@ for metric in cls_metrics:
 
 
 
-# In[36]:
+# In[ ]:
 
 
 metric_results_PCA={}
@@ -586,16 +586,22 @@ for metric in cls_metrics:
     print 'max', metric, 'for number of components', pca_numbers[np.argmax(metric_results_PCA[metric])]     ,'max value', max(metric_results_PCA[metric])
 
 
-# In[45]:
+# In[ ]:
 
 
-print(metrics.classification_report(Y_test_shift, Y_pred_test ))
+metrics.confusion_matrix(Y_test_shift, Y_pred_test)
 
 
 # In[ ]:
 
 
+print(metrics.classification_report(Y_test_shift, Y_pred_test))
 
+
+# In[ ]:
+
+
+metrics.precision_score(Y_test_shift, Y_pred_test)
 
 
 # In[ ]:
