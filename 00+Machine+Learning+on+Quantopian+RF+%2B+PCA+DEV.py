@@ -1,11 +1,10 @@
 
 # coding: utf-8
 
-# In[3]:
+# In[1]:
 
 
 # the sourse of code go from https://www.quantopian.com/posts/machine-learning-on-quantopian
-
 # import libraries
 from quantopian.research import run_pipeline
 from quantopian.pipeline import Pipeline
@@ -17,6 +16,8 @@ from quantopian.pipeline.classifiers.morningstar import Sector
 from quantopian.pipeline.filters import Q500US, Q1500US
 from quantopian.pipeline.data.quandl import fred_usdontd156n as libor
 from quantopian.pipeline.data.zacks import EarningsSurprises
+from quantopian.pipeline.classifiers.morningstar import Sector
+
 
 import talib
 import pandas as pd
@@ -31,7 +32,7 @@ import seaborn as sns
 from sklearn import linear_model, decomposition, ensemble, preprocessing, isotonic, metrics
 
 
-# In[4]:
+# In[75]:
 
 
 #definition of factors
@@ -173,6 +174,10 @@ def make_factors():
             
     def Working_Capital_To_Assets():
         return bs.working_capital.latest / bs.total_assets.latest   
+    
+    
+
+    
         
     all_factors = {
         'Asset Growth 3M': Asset_Growth_3M,
@@ -180,7 +185,7 @@ def make_factors():
         'Capex to Cashflows': Capex_To_Cashflows,
         'EBIT to Assets': EBIT_To_Assets,
         'EBITDA Yield': EBITDA_Yield,        
-        #'Earnings Quality': Earnings_Quality,
+        'Earnings Quality': Earnings_Quality,
         'MACD Signal Line': MACD_Signal_10d,
         'Mean Reversion 1M': Mean_Reversion_1M,
         'Moneyflow Volume 5D': Moneyflow_Volume_5d,
@@ -192,23 +197,37 @@ def make_factors():
         '39 Week Returns': Returns_39W,
         'Trendline': Trendline,
         'Vol 3M': Vol_3M,
-        'Working Capital to Assets': Working_Capital_To_Assets,        
+        'Working Capital to Assets': Working_Capital_To_Assets,   
+        
     }        
     
     return all_factors
 factors = make_factors()
 
 
-# In[5]:
+# In[76]:
 
 
 universe = Q500US() # Define universe and select factors to use
-n_fwd_days = 5 # number of days to compute returns over
+n_fwd_days = 2 # number of days to compute returns over
+
+
+# In[77]:
+
+
+class Momentum(CustomFactor):
+        """ Momentum factor """
+        inputs = [USEquityPricing.close,
+                  Returns(window_length=126)]
+        window_length = 252
+
+        def compute(self, today, assets, out, prices, returns):
+            out[:] = ((prices[-21] - prices[-252])/prices[-252] -                       (prices[-1] - prices[-21])/prices[-21]) / np.nanstd(returns, axis=0)
 
 
 # Differently to source I changed rank to zscore!  
 
-# In[6]:
+# In[78]:
 
 
 # Define and build the pipeline
@@ -218,9 +237,11 @@ def make_history_pipeline(factors, universe, n_fwd_days=5):
     # Get cumulative returns over last n_fwd_days days. We will later shift these.
     factor_zscore['Returns'] = Returns(inputs=[USEquityPricing.open],
                                       mask=universe, window_length=n_fwd_days)
+    factor_zscore['Momentum']=  Momentum(mask=universe)
+    factor_zscore['Sectors'] = Sector(mask=universe)
     
     # Add many returns as factors
-    for i in [2,3,4,5,7,10,20,60,100,250]:
+    for i in [2,3,4,5,10,20]:
         factor_zscore ['Return'+str(i)] = Returns(inputs=[USEquityPricing.open],
                                       mask=universe, window_length=i)    
     
@@ -232,7 +253,7 @@ def make_history_pipeline(factors, universe, n_fwd_days=5):
 history_pipe = make_history_pipeline(factors, universe, n_fwd_days=n_fwd_days)
 
 
-# In[7]:
+# In[79]:
 
 
 # Because of problem with  time when taken a lot of data divide time to periods
@@ -243,7 +264,7 @@ results=pd.DataFrame()
 start = end_full-number_of_periods*(period)-(number_of_periods-1)*pd.DateOffset(1)
 
 
-# In[8]:
+# In[ ]:
 
 
 # Run pipeline
@@ -258,13 +279,19 @@ end_timer = time()
 print "Time to run pipeline %.2f secs" % (end_timer - start_timer)
 
 
-# In[9]:
+# In[ ]:
 
 
-results.head()
+results.Momentum.head(1)
 
 
-# In[10]:
+# In[ ]:
+
+
+
+
+
+# In[ ]:
 
 
 # Sometimes there are duplicated indexis
@@ -288,35 +315,7 @@ X_train, Y_train = X[:train_size, ...], Y[:train_size]
 X_test, Y_test = X[(train_size+n_fwd_days):, ...], Y[(train_size+n_fwd_days):]
 
 
-# In[11]:
-
-
-def shift_mask_data_absolut_return(X, Y, n_fwd_days=1):
-    # Shift X to match factors at t to returns at t+n_fwd_days (we want to predict future returns after all)
-    shifted_X = np.roll(X, n_fwd_days+1, axis=0)
-    
-    # Slice off rolled elements
-    X = shifted_X[n_fwd_days+1:]
-    Y = Y[n_fwd_days+1:]
-    
-    n_time, n_stocks, n_factors = X.shape
-    level=0.01
-    upper_mask = (Y > level)
-    lower_mask = (Y <= level)
-    
-    
-    # Try to predict the price go up to level 
-    Y_binary = np.zeros(n_time * n_stocks)
-    Y_binary[upper_mask.flatten()] =  1
-    Y_binary[lower_mask.flatten()] = 0
-
-    # Flatten X
-    X = X.reshape((n_time * n_stocks, n_factors))
-    
-    return X, Y_binary
-
-
-# In[12]:
+# In[ ]:
 
 
 def shift_mask_data(X, Y, upper_percentile=60, lower_percentile=40, n_fwd_days=1):
@@ -354,7 +353,7 @@ def shift_mask_data(X, Y, upper_percentile=60, lower_percentile=40, n_fwd_days=1
     return X, Y_binary
 
 
-# In[13]:
+# In[ ]:
 
 
 X_train_shift, Y_train_shift = shift_mask_data(X_train, Y_train, n_fwd_days=n_fwd_days, 
@@ -368,7 +367,7 @@ print X_train_shift.shape, X_test_shift.shape
 print Y_train_shift.shape, Y_test_shift.shape
 
 
-# In[14]:
+# In[ ]:
 
 
 imputer = preprocessing.Imputer()
@@ -380,7 +379,7 @@ X_test_trans = scaler.transform(X_test_trans)
 print X_train_trans.shape, X_test_trans.shape
 
 
-# In[15]:
+# In[ ]:
 
 
 cls_metrics = {
@@ -399,7 +398,112 @@ metric_colors = {
                 }
 
 
-# In[16]:
+# In[ ]:
+
+
+metric_results_RF={}
+for metric in cls_metrics:
+    metric_results_RF.update({metric:[]})
+    metric_results_RF.update({'time':[]})
+    metric_results_RF.update({'depth':[]})
+    metric_results_RF.update({'estimator':[]})
+    metric_results_RF.update({'feature':[]})
+    
+depths =  np.array([40,100])
+features =  np.array([3,4,5,6])
+estimators =  np.array([10,40])
+
+
+for depth in depths:
+    for feature in features:
+        for estimator in estimators:  
+            start_timer = time()
+            #clf = ensemble.RandomForestClassifier(max_depth=depth,n_estimators=estimator,max_features= feature) 
+            clf= ensemble.AdaBoostClassifier(n_estimators=estimator)
+            clf.fit(X_train_trans, Y_train_shift)
+            Y_pred_test = clf.predict(X_test_trans)
+            end_timer = time()
+            print 'depth',depth, 'feat', feature, 'est', estimator ,             cls_metrics['precision'](Y_test_shift, Y_pred_test), end_timer-start_timer
+
+            for metric in cls_metrics:         
+                temp = cls_metrics[metric](Y_test_shift, Y_pred_test)
+                metric_results_RF[metric].append(temp)
+
+            metric_results_RF['time'].append(end_timer-start_timer)
+            metric_results_RF['depth'].append(depth)
+            metric_results_RF['estimator'].append(estimator)
+            metric_results_RF['feature'].append(feature)
+
+
+# In[ ]:
+
+
+for metric in cls_metrics:
+    print 'max', metric, 'max value', max(metric_results_RF[metric]), 'for ' ,    'depth', metric_results_RF['depth'][np.argmax(metric_results_RF[metric])],    'estimator', metric_results_RF['estimator'][np.argmax(metric_results_RF[metric])],    'feature', metric_results_RF['feature'][np.argmax(metric_results_RF[metric])]
+    
+        
+        
+    
+
+
+# In[ ]:
+
+
+feature_importances = pd.Series(clf.feature_importances_, index=results_wo_returns.columns)
+feature_importances.sort(ascending=False)
+ax = feature_importances.plot(kind='bar')
+ax.set(ylabel='Importance (Gini Coefficient)', title='Feature importances');
+
+
+# In[ ]:
+
+
+
+
+
+# In[ ]:
+
+
+
+
+
+# In[ ]:
+
+
+
+
+
+# In[ ]:
+
+
+
+
+
+# In[ ]:
+
+
+
+
+
+# In[ ]:
+
+
+
+
+
+# In[ ]:
+
+
+
+
+
+# In[ ]:
+
+
+
+
+
+# In[17]:
 
 
 metric_results_RF={}
@@ -425,7 +529,7 @@ for depth in depths:
     
 
 
-# In[17]:
+# In[ ]:
 
 
 mywidth = 0.1
@@ -469,7 +573,7 @@ for metric in cls_metrics:
 
 
 
-# In[19]:
+# In[ ]:
 
 
 metric_results_RF={}
@@ -495,7 +599,7 @@ for estimator in estimators:
     metric_results_RF['time'].append(end_timer-start_timer)
 
 
-# In[26]:
+# In[ ]:
 
 
 mywidth = 0.1
@@ -526,7 +630,7 @@ for metric in cls_metrics:
     print 'max', metric, 'for variable', estimators[np.argmax(metric_results_RF[metric])]     ,'max value', max(metric_results_RF[metric])
 
 
-# In[33]:
+# In[ ]:
 
 
 metric_results_RF={}
@@ -552,7 +656,7 @@ for changed_variable in changed_variables:
     metric_results_RF['time'].append(end_timer-start_timer)
 
 
-# In[32]:
+# In[ ]:
 
 
 mywidth = 0.1
@@ -587,59 +691,6 @@ for metric in cls_metrics:
 
 
 
-
-
-# In[59]:
-
-
-metric_results_RF={}
-for metric in cls_metrics:
-    metric_results_RF.update({metric:[]})
-    metric_results_RF.update({'time':[]})
-    metric_results_RF.update({'depth':[]})
-    metric_results_RF.update({'estimator':[]})
-    metric_results_RF.update({'feature':[]})
-    
-depths =  np.array([1,2,3,5,6,7,10,15,20,35,40,50,60,100,200])
-features =  np.array([1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27])
-estimators =  np.array([10,20,30,35,40,50,60,70,90,100,200,300,400])
-
-
-for depth in depths:
-    for feature in features:
-        for estimator in estimators:  
-            start_timer = time()
-            clf = ensemble.RandomForestClassifier(max_depth=depth,n_estimators=estimator,max_features= feature) 
-            clf.fit(X_train_trans, Y_train_shift)
-            Y_pred_test = clf.predict(X_test_trans)
-            end_timer = time()
-            print 'depth',depth, 'feat', feature, 'est', estimator ,             cls_metrics['precision'](Y_test_shift, Y_pred_test), end_timer-start_timer
-
-            for metric in cls_metrics:         
-                temp = cls_metrics[metric](Y_test_shift, Y_pred_test)
-                metric_results_RF[metric].append(temp)
-
-            metric_results_RF['time'].append(end_timer-start_timer)
-            metric_results_RF['depth'].append(depth)
-            metric_results_RF['estimator'].append(estimator)
-            metric_results_RF['feature'].append(feature)
-
-
-# In[58]:
-
-
-for metric in cls_metrics:
-    print 'max', metric, 'max value', max(metric_results_RF[metric]), 'for ' ,    'depth', metric_results_RF['depth'][np.argmax(metric_results_RF[metric])],    'estimator', metric_results_RF['estimator'][np.argmax(metric_results_RF[metric])],    'feature', metric_results_RF['feature'][np.argmax(metric_results_RF[metric])]
-    
-        
-        
-    
-
-
-# In[42]:
-
-
-metric_results_RF['depth'][10]
 
 
 # In[ ]:
