@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[1]:
+# In[3]:
 
 
 # the sourse of code go from https://www.quantopian.com/posts/machine-learning-on-quantopian
@@ -31,7 +31,7 @@ import seaborn as sns
 from sklearn import linear_model, decomposition, ensemble, preprocessing, isotonic, metrics
 
 
-# In[2]:
+# In[4]:
 
 
 #definition of factors
@@ -199,7 +199,7 @@ def make_factors():
 factors = make_factors()
 
 
-# In[3]:
+# In[5]:
 
 
 universe = Q500US() # Define universe and select factors to use
@@ -208,7 +208,7 @@ n_fwd_days = 5 # number of days to compute returns over
 
 # Differently to source I changed rank to zscore!  
 
-# In[77]:
+# In[6]:
 
 
 # Define and build the pipeline
@@ -220,7 +220,7 @@ def make_history_pipeline(factors, universe, n_fwd_days=5):
                                       mask=universe, window_length=n_fwd_days)
     
     # Add many returns as factors
-    for i in [10,20,30,60,100,250]:
+    for i in [2,3,4,5,7,10,20,60,100,250]:
         factor_zscore ['Return'+str(i)] = Returns(inputs=[USEquityPricing.open],
                                       mask=universe, window_length=i)    
     
@@ -232,18 +232,18 @@ def make_history_pipeline(factors, universe, n_fwd_days=5):
 history_pipe = make_history_pipeline(factors, universe, n_fwd_days=n_fwd_days)
 
 
-# In[78]:
+# In[7]:
 
 
 # Because of problem with  time when taken a lot of data divide time to periods
-end_full = pd.Timestamp("2017-08-07")
-period = pd.DateOffset(50)
+end_full = pd.Timestamp("2016-08-07")
+period = pd.DateOffset(100)
 number_of_periods = 1
 results=pd.DataFrame()
 start = end_full-number_of_periods*(period)-(number_of_periods-1)*pd.DateOffset(1)
 
 
-# In[79]:
+# In[8]:
 
 
 # Run pipeline
@@ -258,13 +258,13 @@ end_timer = time()
 print "Time to run pipeline %.2f secs" % (end_timer - start_timer)
 
 
-# In[80]:
+# In[9]:
 
 
 results.head()
 
 
-# In[81]:
+# In[10]:
 
 
 # Sometimes there are duplicated indexis
@@ -288,7 +288,7 @@ X_train, Y_train = X[:train_size, ...], Y[:train_size]
 X_test, Y_test = X[(train_size+n_fwd_days):, ...], Y[(train_size+n_fwd_days):]
 
 
-# In[82]:
+# In[11]:
 
 
 def shift_mask_data_absolut_return(X, Y, n_fwd_days=1):
@@ -316,7 +316,7 @@ def shift_mask_data_absolut_return(X, Y, n_fwd_days=1):
     return X, Y_binary
 
 
-# In[83]:
+# In[12]:
 
 
 def shift_mask_data(X, Y, upper_percentile=60, lower_percentile=40, n_fwd_days=1):
@@ -354,7 +354,7 @@ def shift_mask_data(X, Y, upper_percentile=60, lower_percentile=40, n_fwd_days=1
     return X, Y_binary
 
 
-# In[84]:
+# In[13]:
 
 
 X_train_shift, Y_train_shift = shift_mask_data(X_train, Y_train, n_fwd_days=n_fwd_days, 
@@ -368,7 +368,7 @@ print X_train_shift.shape, X_test_shift.shape
 print Y_train_shift.shape, Y_test_shift.shape
 
 
-# In[85]:
+# In[14]:
 
 
 imputer = preprocessing.Imputer()
@@ -380,7 +380,7 @@ X_test_trans = scaler.transform(X_test_trans)
 print X_train_trans.shape, X_test_trans.shape
 
 
-# In[98]:
+# In[15]:
 
 
 cls_metrics = {
@@ -399,14 +399,14 @@ metric_colors = {
                 }
 
 
-# In[99]:
+# In[16]:
 
 
 metric_results_RF={}
 for metric in cls_metrics:
     metric_results_RF.update({metric:[]})
     metric_results_RF.update({'time':[]});
-depths =  np.array([1,2,3,5,6,7,15,10,40,50,100,200,300,500, 1000])
+depths =  np.array([1,2,3,5,6,7,15,10,40,50,100,200,300,500])
     
 for depth in depths:
     start_timer = time()
@@ -423,6 +423,11 @@ for depth in depths:
     
     metric_results_RF['time'].append(end_timer-start_timer)
     
+
+
+# In[17]:
+
+
 mywidth = 0.1
 shift = -(len(cls_metrics)-1)/2*mywidth
 
@@ -436,6 +441,7 @@ plt.title("Comparing depth")
 plt.xlabel('Maximum depth')
 plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
 plt.xticks(np.array(range(1,len(depths)+1)), depths, rotation='vertical')
+plt.ylim((0.45,0.62))
 plt.show()    
 
 plt.bar(np.array(range(1,len(depths)+1)), metric_results_RF['time'], width=mywidth,
@@ -463,7 +469,7 @@ for metric in cls_metrics:
 
 
 
-# In[100]:
+# In[19]:
 
 
 metric_results_RF={}
@@ -471,11 +477,68 @@ for metric in cls_metrics:
     metric_results_RF.update({metric:[]})
     metric_results_RF.update({'time':[]});
     
-changed_variables =  np.array([10,20,30,40,50,70,100,200,300,400,500, 600, 1000])
+estimators =  np.array([10,20,30,35,40,45,50,70,100,200,300,400,500,])
+    
+for estimator in estimators:
+    start_timer = time()
+    clf = ensemble.RandomForestClassifier(max_depth=30,n_estimators=estimator) 
+    clf.fit(X_train_trans, Y_train_shift)
+    
+    Y_pred_test = clf.predict(X_test_trans)
+    end_timer = time()
+    print estimator,
+    
+    for metric in cls_metrics:         
+        temp = cls_metrics[metric](Y_test_shift, Y_pred_test)
+        metric_results_RF[metric].append(temp)
+    
+    metric_results_RF['time'].append(end_timer-start_timer)
+
+
+# In[26]:
+
+
+mywidth = 0.1
+shift = -(len(cls_metrics)-1)/2*mywidth
+
+for metric in cls_metrics:
+       
+    plt.bar(np.array(range(1,len(estimators)+1))+shift, metric_results_RF[metric], width=mywidth,
+        label = metric, color=metric_colors[metric])
+    shift += mywidth
+   
+plt.title("Comparing number of estimators")
+plt.xlabel('Number of estimators')
+plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
+plt.xticks(np.array(range(1,len(estimators)+1)), estimators, rotation='vertical')
+plt.ylim((0.4,0.55))
+plt.show()    
+
+plt.bar(np.array(range(1,len(estimators)+1)), metric_results_RF['time'], width=mywidth,
+        label = 'time', color=metric_colors[metric])
+plt.title("Time to train")
+plt.xlabel('Number of estimators')
+plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
+plt.xticks(np.array(range(1,len(estimators)+1)), estimators, rotation='vertical')
+plt.show()
+
+for metric in cls_metrics:
+    print 'max', metric, 'for variable', estimators[np.argmax(metric_results_RF[metric])]     ,'max value', max(metric_results_RF[metric])
+
+
+# In[33]:
+
+
+metric_results_RF={}
+for metric in cls_metrics:
+    metric_results_RF.update({metric:[]})
+    metric_results_RF.update({'time':[]});
+    
+changed_variables =  np.array([1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18])
     
 for changed_variable in changed_variables:
     start_timer = time()
-    clf = ensemble.RandomForestClassifier(max_depth=30,n_estimators=changed_variable) 
+    clf = ensemble.RandomForestClassifier(max_depth=30,n_estimators=30,max_features= changed_variable) 
     clf.fit(X_train_trans, Y_train_shift)
     
     Y_pred_test = clf.predict(X_test_trans)
@@ -487,7 +550,11 @@ for changed_variable in changed_variables:
         metric_results_RF[metric].append(temp)
     
     metric_results_RF['time'].append(end_timer-start_timer)
-    
+
+
+# In[32]:
+
+
 mywidth = 0.1
 shift = -(len(cls_metrics)-1)/2*mywidth
 
@@ -497,22 +564,23 @@ for metric in cls_metrics:
         label = metric, color=metric_colors[metric])
     shift += mywidth
    
-plt.title("Comparing variable")
-plt.xlabel('Maximum variable')
+plt.title("Comparing max features")
+plt.xlabel('Maximum features')
 plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
 plt.xticks(np.array(range(1,len(changed_variables)+1)), changed_variables, rotation='vertical')
+plt.ylim((0.45,0.52))
 plt.show()    
 
 plt.bar(np.array(range(1,len(changed_variables)+1)), metric_results_RF['time'], width=mywidth,
         label = 'time', color=metric_colors[metric])
 plt.title("Time to train")
-plt.xlabel('Variable')
+plt.xlabel('Maximum feauters')
 plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
 plt.xticks(np.array(range(1,len(changed_variables)+1)), changed_variables, rotation='vertical')
 plt.show()
 
 for metric in cls_metrics:
-    print 'max', metric, 'for variable', changed_variables[np.argmax(metric_results_RF[metric])]     ,'max value', max(metric_results_RF[metric])
+    print 'max', metric, 'for max features', changed_variables[np.argmax(metric_results_RF[metric])]     ,'max value', max(metric_results_RF[metric])
 
 
 # In[ ]:
@@ -521,7 +589,72 @@ for metric in cls_metrics:
 
 
 
-# In[101]:
+# In[59]:
+
+
+metric_results_RF={}
+for metric in cls_metrics:
+    metric_results_RF.update({metric:[]})
+    metric_results_RF.update({'time':[]})
+    metric_results_RF.update({'depth':[]})
+    metric_results_RF.update({'estimator':[]})
+    metric_results_RF.update({'feature':[]})
+    
+depths =  np.array([1,2,3,5,6,7,10,15,20,35,40,50,60,100,200])
+features =  np.array([1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27])
+estimators =  np.array([10,20,30,35,40,50,60,70,90,100,200,300,400])
+
+
+for depth in depths:
+    for feature in features:
+        for estimator in estimators:  
+            start_timer = time()
+            clf = ensemble.RandomForestClassifier(max_depth=depth,n_estimators=estimator,max_features= feature) 
+            clf.fit(X_train_trans, Y_train_shift)
+            Y_pred_test = clf.predict(X_test_trans)
+            end_timer = time()
+            print 'depth',depth, 'feat', feature, 'est', estimator ,             cls_metrics['precision'](Y_test_shift, Y_pred_test), end_timer-start_timer
+
+            for metric in cls_metrics:         
+                temp = cls_metrics[metric](Y_test_shift, Y_pred_test)
+                metric_results_RF[metric].append(temp)
+
+            metric_results_RF['time'].append(end_timer-start_timer)
+            metric_results_RF['depth'].append(depth)
+            metric_results_RF['estimator'].append(estimator)
+            metric_results_RF['feature'].append(feature)
+
+
+# In[58]:
+
+
+for metric in cls_metrics:
+    print 'max', metric, 'max value', max(metric_results_RF[metric]), 'for ' ,    'depth', metric_results_RF['depth'][np.argmax(metric_results_RF[metric])],    'estimator', metric_results_RF['estimator'][np.argmax(metric_results_RF[metric])],    'feature', metric_results_RF['feature'][np.argmax(metric_results_RF[metric])]
+    
+        
+        
+    
+
+
+# In[42]:
+
+
+metric_results_RF['depth'][10]
+
+
+# In[ ]:
+
+
+
+
+
+# In[ ]:
+
+
+
+
+
+# In[ ]:
 
 
 metric_results_PCA={}
@@ -553,9 +686,12 @@ for pca_number in pca_numbers :
     metric_results_PCA['time'].append(end_timer-start_timer)
     metric_results_PCA['time_PCA'].append(end_timer_PCA-start_timer_PCA)
 
-    mywidth =0.1
-    
-    
+
+
+# In[ ]:
+
+
+mywidth =0.1  
 shift=-(len(cls_metrics)-1)/2*mywidth
 for metric in cls_metrics:
         
@@ -567,6 +703,7 @@ for metric in cls_metrics:
 plt.title("Comparing numbers of components in PCA")
 plt.xlabel('Numbers of components')
 plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
+plt.ylim((0.46,0.56))
 plt.show()
 
 plt.bar(np.array(range(1,len(pca_numbers)+1))-mywidth, metric_results_PCA['time'], width=mywidth,
@@ -586,13 +723,7 @@ for metric in cls_metrics:
     print 'max', metric, 'for number of components', pca_numbers[np.argmax(metric_results_PCA[metric])]     ,'max value', max(metric_results_PCA[metric])
 
 
-# In[107]:
-
-
-clf
-
-
-# In[108]:
+# In[ ]:
 
 
 def get_last_values(input_data):
@@ -602,7 +733,7 @@ def get_last_values(input_data):
     return np.vstack(last_values).T
 
 
-# In[134]:
+# In[ ]:
 
 
 class ML(CustomFactor):
@@ -636,7 +767,7 @@ class ML(CustomFactor):
         out[:] = self.clf.predict_proba(last_factor_values)[:, 1]*100
 
 
-# In[148]:
+# In[ ]:
 
 
 from collections import OrderedDict
@@ -647,7 +778,7 @@ def make_ml_pipeline(factors, universe, window_length=5, n_fwd_days=2):
     factors_pipe['Returns'] = Returns(inputs=[USEquityPricing.open],
                                       mask=universe, window_length=n_fwd_days)
     
-    for i in [10,20,30,60,100,250]:
+    for i in [2,3,4,5,7,10,20,60,100,250]:
         factors_pipe ['Return'+str(i)] = Returns(inputs=[USEquityPricing.open],
                                       mask=universe, window_length=i)    
     # Instantiate ranked factors
@@ -669,12 +800,12 @@ def make_ml_pipeline(factors, universe, window_length=5, n_fwd_days=2):
 ml_pipe = make_ml_pipeline(factors, universe)
 
 
-# In[149]:
+# In[ ]:
 
 
 start_timer = time()
-start = pd.Timestamp("2015-01-01") # Can't choose a much longer time-period or we run out of RAM
-end = pd.Timestamp("2015-03-01")
+start = pd.Timestamp("2016-08-07") # Can't choose a much longer time-period or we run out of RAM
+end = pd.Timestamp("2017-08-07")
 
 results = run_pipeline(ml_pipe, start_date=start, end_date=end)
 
@@ -682,47 +813,65 @@ end_timer = time()
 print "Time to run pipeline %.2f secs" % (end_timer - start_timer)
 
 
-# In[150]:
+# In[ ]:
 
 
 results['ML_ranked']
 
 
-# In[151]:
+# In[ ]:
 
 
 assets = results.index.levels[1]
 pricing = get_pricing(assets, start, end + pd.Timedelta(days=30), fields="open_price")
 
 
-# In[152]:
+# In[ ]:
 
 
 pricing.shape
 
 
-# In[153]:
+# In[ ]:
 
 
 results.columns
 
 
-# In[154]:
+# In[ ]:
 
 
 results.ML.iloc[1]
 
 
-# In[155]:
+# In[ ]:
 
 
 results['Asset Growth 3M'].head()
 
 
-# In[159]:
+# In[ ]:
 
 
-al.tears.create_factor_tear_sheet(results['ML_ranked'], pricing)
+get_ipython().magic(u'pinfo al.tears.create_factor_tear_sheet')
+
+
+# In[ ]:
+
+
+al.tears.create_factor_tear_sheet(results['ML'], pricing, quantiles=2)
+
+
+# In[ ]:
+
+
+
+
+
+# In[ ]:
+
+
+
 
 
 # In[ ]:
